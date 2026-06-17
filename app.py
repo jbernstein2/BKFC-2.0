@@ -25,8 +25,9 @@ uploaded_opp_excel = st.sidebar.file_uploader("Upload Opponent Season Data (Exce
 # Safe conditional interface evaluation 
 if uploaded_bk_excel is not None:
     try:
-        # Dynamically parsed via our updated module
-        df_stats = parser.parse_team_stats(uploaded_bk_excel)
+        # Parse the raw sheet, then clean up empty layout spacer rows for the match picker
+        raw_df = parser.parse_team_stats(uploaded_bk_excel)
+        df_stats = raw_df.dropna(subset=['Match', 'Team']).copy()
         
         # Match Slicing Dropdowns
         match_options = sorted(df_stats['Match'].unique())
