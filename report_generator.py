@@ -1,88 +1,59 @@
 import plotly.graph_objects as go
+import numpy as np
+import pandas as pd
 
-def build_grouped_bar_chart(df_bar, opp_team_name, has_baseline=False):
-    """Generates side-by-side contextual horizontal bar graphs in Brooklyn FC brand colors."""
+def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6'):
+    """
+    Generates a grouped bar chart for Brooklyn FC vs an Opponent.
+    Fixes NaN graph voids, locks rounding precision, and ensures clean labeling.
+    """
     fig = go.Figure()
     
-    # Brooklyn FC - Gold Accent
+    # Ensure values are numeric and rounded safely to 2 decimal places
+    b_fc_val = round(float(pd.to_numeric(df_metrics['Brooklyn_FC'].iloc[0], errors='coerce')), 2)
+    opp_val = round(float(pd.to_numeric(df_metrics['Opponent'].iloc[0], errors='coerce')), 2)
+    metric_label = str(df_metrics['Metric_Name'].iloc[0])
+    
+    # 1. Brooklyn FC Match Performance Bar
     fig.add_trace(go.Bar(
-        y=df_bar['Metric'], x=df_bar['Brooklyn FC (Match)'], 
-        name='Brooklyn FC (Match)', orientation='h', marker_color='#D4AF37'
+        x=[metric_label],
+        y=[b_fc_val],
+        name='Brooklyn FC',
+        marker_color=primary_color,
+        text=[f"{b_fc_val}"],
+        textposition='auto'
     ))
     
-    # Opponent Match - Silver / Light Grey
+    # 2. Opponent Match Performance Bar
     fig.add_trace(go.Bar(
-        y=df_bar['Metric'], x=df_bar[f'{opp_team_name} (Match)'], 
-        name=f'{opp_team_name} (Match)', orientation='h', marker_color='#8A95A5'
+        x=[metric_label],
+        y=[opp_val],
+        name=f"{opponent_name} (Match)",
+        marker_color=opponent_color,
+        text=[f"{opp_val}"],
+        textposition='auto'
     ))
     
-    # Opponent Seasonal Baseline - Translucent White/Silver
-    if has_baseline and f'{opp_team_name} (Season Baseline)' in df_bar.columns:
+    # 3. Opponent Season Baseline Bar (Only added if a valid baseline exists)
+    if season_baseline is not None and not np.isnan(season_baseline):
+        base_val = round(float(season_baseline), 2)
         fig.add_trace(go.Bar(
-            y=df_bar['Metric'], x=df_bar[f'{opp_team_name} (Season Baseline)'], 
-            name=f'{opp_team_name} (Season Baseline)', orientation='h', 
-            marker_color='rgba(255, 255, 255, 0.25)'
+            x=[metric_label],
+            y=[base_val],
+            name=f"{opponent_name} (Season Avg)",
+            marker_color='#4A90E2',  # Distinct baseline color
+            text=[f"{base_val}"],
+            textposition='auto'
         ))
         
+    # Layout and styling configurations for the dashboard interface
     fig.update_layout(
-        barmode='group', 
-        title="Did We Disrupt Their Tactical Style?",
-        paper_bgcolor='rgba(0,0,0,0)', 
-        plot_bgcolor='rgba(0,0,0,0)', 
-        font_color='#ffffff',
-        xaxis=dict(gridcolor='#22262B'), 
-        yaxis=dict(gridcolor='rgba(0,0,0,0)'),
+        barmode='group',
+        title=f"Tactical Context: Brooklyn FC vs {opponent_name}",
+        xaxis_title="Performance Domain",
+        yaxis_title="Value",
+        template="plotly_white",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-    return fig
-
-def build_radar_profile_web(brooklyn_data, opponent_data, opp_baseline=None, opp_team_name="Opponent"):
-    """Constructs technical efficiency radar charts mapping stylistic variance."""
-    radar_labels = ['Pass Accuracy %', 'Duels Won %', 'Cross Accuracy %', 'Forward Pass %', 'Final 3rd Pass Acc %', 'Progressive Pass Acc %']
     
-    b_radar = [
-        float(brooklyn_data['Unnamed: 13'].values[0]), float(brooklyn_data['Unnamed: 25'].values[0]),
-        float(brooklyn_data['Unnamed: 49'].values[0]), float(brooklyn_data['Unnamed: 80'].values[0]),
-        float(brooklyn_data['Unnamed: 92'].values[0]), float(brooklyn_data['Unnamed: 95'].values[0])
-    ]
-    o_radar = [
-        float(opponent_data['Unnamed: 13'].values[0]), float(opponent_data['Unnamed: 25'].values[0]),
-        float(opponent_data['Unnamed: 49'].values[0]), float(opponent_data['Unnamed: 80'].values[0]),
-        float(opponent_data['Unnamed: 92'].values[0]), float(opponent_data['Unnamed: 95'].values[0])
-    ]
-    
-    fig = go.Figure()
-    
-    # Brooklyn Profile - Gold Fill
-    fig.add_trace(go.Scatterpolar(
-        r=b_radar, theta=radar_labels, fill='toself', 
-        name='Brooklyn FC (Match)', line=dict(color='#D4AF37', width=2), 
-        fillcolor='rgba(212, 175, 55, 0.15)'
-    ))
-    
-    # Opponent Match Profile - Silver Fill
-    fig.add_trace(go.Scatterpolar(
-        r=o_radar, theta=radar_labels, fill='toself', 
-        name=f'{opp_team_name} (Match)', line=dict(color='#8A95A5', width=2), 
-        fillcolor='rgba(138, 149, 165, 0.15)'
-    ))
-    
-    # Opponent Base Profile - Dashed White
-    if opp_baseline:
-        o_base_radar = [
-            opp_baseline['Unnamed: 13'], opp_baseline['Unnamed: 25'],
-            opp_baseline['Unnamed: 49'], opp_baseline['Unnamed: 80'],
-            opp_baseline['Unnamed: 92'], opp_baseline['Unnamed: 95']
-        ]
-        fig.add_trace(go.Scatterpolar(
-            r=o_base_radar, theta=radar_labels, fill='none', 
-            name=f'{opp_team_name} (Season Baseline)', 
-            line=dict(color='#FFFFFF', width=2, dash='dash')
-        ))
-        
-    fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, gridcolor='#22262B'), angularaxis=dict(gridcolor='#22262B')),
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#ffffff', 
-        title="Style Distortions vs Normal Norms"
-    )
     return fig
