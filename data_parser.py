@@ -3,17 +3,15 @@ import pypdf
 import io
 
 def parse_team_stats(file_obj):
-    """Dynamically detects file type and extracts match tracking logs."""
+    """Dynamically detects file type and extracts raw, unaltered spreadsheet rows."""
     file_name = file_obj.name.lower()
     
-    # Auto-detect file format based on extension
     if file_name.endswith('.csv'):
         df = pd.read_csv(io.BytesIO(file_obj.getvalue()))
     else:
-        # Fallback to Excel parsing
         df = pd.read_excel(io.BytesIO(file_obj.getvalue()), sheet_name='TeamStats')
         
-    return df.dropna(subset=['Match', 'Team']).copy()
+    return df  # Returns completely raw dataframe to preserve summary rows
 
 def read_pdf_page(pdf_file, page_num):
     """Extracts raw text content from a localized page number layer."""
