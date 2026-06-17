@@ -3,47 +3,45 @@ import numpy as np
 import pandas as pd
 
 def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6', has_baseline=None):
-    """
-    Generates a grouped bar chart for Brooklyn FC vs an Opponent.
-    Dynamically maps 'Brooklyn' to the primary team and the opponent row to the secondary.
-    """
-    fig = go.Figure()
+    # 1. Clean column names (strip whitespace)
+    df_metrics.columns = [str(c).strip() for c in df_metrics.columns]
     
-    # --- DYNAMIC LOOKUP ---
-    # Find the row for Brooklyn and the row for the Opponent
-    bk_row = df_metrics[df_metrics['Team'] == 'Brooklyn'].iloc[0]
-    opp_row = df_metrics[df_metrics['Team'] != 'Brooklyn'].iloc[0]
+    # 2. Find which column contains the team names
+    # It looks for the first column that contains 'Brooklyn' or 'Opponent'
+    team_col = None
+    for col in df_metrics.columns:
+        if 'brooklyn' in df_metrics[col].astype(str).str.lower().values[0]:
+            team_col = col
+            break
     
-    # Get the metric value (assuming the metric name is passed as the column name to look for)
-    # The metric_label is the column name you are plotting
-    metric_key = df_metrics.columns[-1] # Adjust this if needed
+    if not team_col:
+        # Fallback: assume the second column (index 1) is the Team column based on your file
+        team_col = df_metrics.columns[1]
+
+    # 3. Dynamic lookup using the identified team column
+    bk_mask = df_metrics[team_col].astype(str).str.contains('Brooklyn', case=False)
+    
+    # Handle cases where team names might be "Louisville City" or "Opponents"
+    # We grab the first row that ISN'T Brooklyn as the opponent
+    bk_row = df_metrics[bk_mask].iloc[0]
+    opp_row = df_metrics[~bk_mask].iloc[0]
+    
+    # Get the numeric metric (assuming the last column is the one you are plotting)
+    metric_key = df_metrics.columns[-1]
     
     b_fc_val = round(float(pd.to_numeric(bk_row[metric_key], errors='coerce')), 2)
     opp_val = round(float(pd.to_numeric(opp_row[metric_key], errors='coerce')), 2)
-    metric_label = metric_key 
-    # -----------------------
-
-    # 1. Brooklyn FC
-    fig.add_trace(go.Bar(
-        x=[metric_label], y=[b_fc_val], name='Brooklyn',
-        marker_color=primary_color, text=[f"{b_fc_val}"], textposition='auto'
-    ))
     
-    # 2. Opponent Performance
-    fig.add_trace(go.Bar(
-        x=[metric_label], y=[opp_val], name=f"{opponent_name} (Match)",
-        marker_color=opponent_color, text=[f"{opp_val}"], textposition='auto'
-    ))
+    # --- Now proceed with your existing bar chart code ---
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=[metric_key], y=[b_fc_val], name='Brooklyn', marker_color=primary_color))
+    fig.add_trace(go.Bar(x=[metric_key], y=[opp_val], name=f"{opponent_name} (Match)", marker_color=opponent_color))
     
-    # 3. Season Baseline
     if season_baseline is not None and not np.isnan(float(season_baseline)):
-        fig.add_trace(go.Bar(
-            x=[metric_label], y=[round(float(season_baseline), 2)],
-            name=f"{opponent_name} (Season Avg)", marker_color='#4A90E2',
-            text=[f"{round(float(season_baseline), 2)}"], textposition='auto'
-        ))
+        fig.add_trace(go.Bar(x=[metric_key], y=[round(float(season_baseline), 2)], 
+                             name=f"{opponent_name} (Season Avg)", marker_color='#4A90E2'))
         
-    fig.update_layout(barmode='group', title=f"Brooklyn vs {opponent_name}", template="plotly_white")
+    fig.update_layout(barmode='group', title=f"Tactical Context: Brooklyn vs {opponent_name}", template="plotly_white")
     return fig
 
 def build_radar_profile_web(df_radar, title="Tactical Style Comparison"):
