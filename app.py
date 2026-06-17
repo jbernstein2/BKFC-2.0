@@ -60,47 +60,56 @@ if uploaded_bk_excel is not None:
             st.sidebar.markdown(f"**{opp_team_name} System:** {opponent_data['Scheme'].values[0]}")
 
             # UI LAYOUT TABS
-            tab1, tab2, tab3 = st.tabs(["📊 Performance Comparison", "🕸️ Tactical Style Identity", "📄 PDF Match Report Reader"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Match Performance", "📈 Season Baselines", "🕸️ Tactical Profile", "📄 PDF Match Report Reader"])
 
-            # TAB 1: CARD DASHBOARDS & CHARTS
+            # TAB 1: MATCH PERFORMANCE COMPARISON
             with tab1:
-                st.markdown(f"### Performance Dashboard: Brooklyn vs {opp_team_name}")
+                st.markdown(f"### 🎯 Match Day Performance: Brooklyn vs {opp_team_name}")
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     brand.render_metric_card("BKLYN Goals", brooklyn_data['Goals'].values[0])
                 with col2:
                     opp_g = opponent_data['Goals'].values[0]
-                    base_g = opp_baseline['Goals'] if opp_baseline else None
-                    brand.render_metric_card(f"{opp_team_name} Goals", opp_g, baseline_val=base_g, is_opponent=True)
+                    brand.render_metric_card(f"{opp_team_name} Goals", opp_g, is_opponent=True)
                 with col3:
                     brand.render_metric_card("BKLYN xG", brooklyn_data['xG'].values[0])
                 with col4:
                     opp_xg = opponent_data['xG'].values[0]
-                    base_xg = opp_baseline['xG'] if opp_baseline else None
-                    brand.render_metric_card(f"{opp_team_name} xG", opp_xg, baseline_val=base_xg, is_opponent=True)
+                    brand.render_metric_card(f"{opp_team_name} xG", opp_xg, is_opponent=True)
 
                 st.markdown("---")
                 
                 try:
-                    df_bar_data = intelligence.structure_comparison_dataframe(brooklyn_data, opponent_data, opp_baseline, opp_name=opp_team_name)
-                    fig_bar = generator.build_grouped_bar_chart(df_bar_data, opp_team_name)
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    df_bar_data = intelligence.structure_comparison_dataframe(brooklyn_data, opponent_data, opp_baseline=None, opp_name=opp_team_name)
+                    fig_match = generator.build_match_comparison_chart(df_bar_data, opp_team_name)
+                    st.plotly_chart(fig_match, use_container_width=True)
                 except Exception as chart_err:
-                    st.error(f"Could not construct metrics graphs: {chart_err}. Verify column positioning matches standard structures.")
+                    st.error(f"Could not construct match performance chart: {chart_err}")
 
-            # TAB 2: SPIDER VISUALIZATIONS
+            # TAB 2: SEASON BASELINE COMPARISON
             with tab2:
-                st.markdown("### Tactical Profile Web")
+                st.markdown(f"### 📊 Season Baselines & Context")
+                st.info("This chart shows how Brooklyn's typical performance compares to their average opponents, and how this specific opponent ({}) typically performs.".format(opp_team_name))
+                
+                try:
+                    fig_baseline = generator.build_season_baseline_chart(brooklyn_data, opponent_data, opp_baseline, opp_team_name)
+                    st.plotly_chart(fig_baseline, use_container_width=True)
+                except Exception as baseline_err:
+                    st.error(f"Could not construct season baseline chart: {baseline_err}")
+
+            # TAB 3: TACTICAL PROFILE WEB
+            with tab3:
+                st.markdown("### 🕸️ Tactical Profile Comparison")
                 try:
                     fig_radar = generator.build_radar_profile_web(brooklyn_data, opponent_data, opp_baseline, opp_team_name=opp_team_name)
                     st.plotly_chart(fig_radar, use_container_width=True)
                 except Exception as radar_err:
                     st.error(f"Could not render radar plot mapping vectors: {radar_err}")
 
-            # TAB 3: PDF CONSOLE READER
-            with tab3:
-                st.markdown("### Raw PDF Document Parser")
+            # TAB 4: PDF CONSOLE READER
+            with tab4:
+                st.markdown("### 📄 Raw PDF Document Parser")
                 if uploaded_pdf is not None:
                     try:
                         total_pages = parser.get_pdf_total_pages(uploaded_pdf)
@@ -116,7 +125,7 @@ if uploaded_bk_excel is not None:
                             if matched_pages:
                                 st.write(f"🎯 Keyword match located on pages: **{matched_pages}**")
                             else:
-                               st.write("❌ No matching text mentions located inside document.")
+                                st.write("❌ No matching text mentions located inside document.")
                     except Exception as e:
                         st.error(f"PDF engine failed to handle text streams: {e}")
                 else:
