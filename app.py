@@ -84,7 +84,7 @@ if uploaded_bk_excel is not None:
                 
                 try:
                     df_bar_data = intelligence.structure_comparison_dataframe(brooklyn_data, opponent_data, opp_baseline, opp_name=opp_team_name)
-                    fig_bar = generator.build_grouped_bar_chart(df_bar_data, opp_team_name, has_baseline=(opp_baseline is not None))
+                    fig_bar = generator.build_grouped_bar_chart(df_bar_data, opp_team_name)
                     st.plotly_chart(fig_bar, use_container_width=True)
                 except Exception as chart_err:
                     st.error(f"Could not construct metrics graphs: {chart_err}. Verify column positioning matches standard structures.")
