@@ -2,34 +2,41 @@ import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
 
-def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6', has_baseline=None):
+def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6'):
+    # 1. Reset columns to ensure clean names
     df_metrics.columns = [str(c).strip() for c in df_metrics.columns]
     
-    # 1. Clean data: Remove the top-level summary rows that cause index crashes
-    # We filter for rows where 'Date' or 'Match' is NOT null/empty
-    match_data = df_metrics[df_metrics['Date'].notna() & (df_metrics['Date'] != 'Brooklyn')].copy()
+    # 2. Heuristic: Drop rows that aren't real match data
+    # Real match rows usually have a date or a valid numeric value in the last column.
+    # We drop any rows where the 'Team' or 'Date' columns are null or clearly summary metadata
+    if 'Date' in df_metrics.columns:
+        match_data = df_metrics.dropna(subset=['Date']).copy()
+    else:
+        match_data = df_metrics.copy()
+        
+    # 3. Filter for specific entities (Brooklyn vs. Opponent)
+    # Using 'contains' is safer than exact equality due to potential whitespace
+    bk_data = match_data[match_data.iloc[:, 1].astype(str).str.contains('Brooklyn', case=False, na=False)]
+    opp_data = match_data[~match_data.iloc[:, 1].astype(str).str.contains('Brooklyn', case=False, na=False)]
     
-    # 2. Extract specific rows for this match
-    # We look for rows that match the specific opponent name provided
-    bk_data = match_data[match_data['Team'] == 'Brooklyn']
-    opp_data = match_data[match_data['Team'] != 'Brooklyn']
-    
-    # 3. Fail gracefully if data is missing
+    # 4. Final safety check: Do we actually have rows?
     if bk_data.empty or opp_data.empty:
+        # If we reach here, it means the filter failed to isolate the rows
+        # Return an empty container to keep the app running
         return go.Figure()
 
-    # Get the last column as the metric to plot
+    # Get the last column as the metric (standard for Wyscout exports)
     metric_key = df_metrics.columns[-1]
     
     b_fc_val = round(float(pd.to_numeric(bk_data.iloc[0][metric_key], errors='coerce')), 2)
     opp_val = round(float(pd.to_numeric(opp_data.iloc[0][metric_key], errors='coerce')), 2)
     
-    # 4. Generate Plotly Figure
+    # Generate Figure
     fig = go.Figure()
     fig.add_trace(go.Bar(x=[metric_key], y=[b_fc_val], name='Brooklyn', marker_color=primary_color))
     fig.add_trace(go.Bar(x=[metric_key], y=[opp_val], name=f"{opponent_name} (Match)", marker_color=opponent_color))
     
-    if season_baseline is not None and not np.isnan(float(season_baseline)):
+    if season_baseline and not np.isnan(float(season_baseline)):
         fig.add_trace(go.Bar(x=[metric_key], y=[round(float(season_baseline), 2)], 
                              name=f"{opponent_name} (Season Avg)", marker_color='#4A90E2'))
         
