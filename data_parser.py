@@ -7,7 +7,10 @@ def parse_match_data(file_path):
     """
     Loads and parses Wyscout match exports.
     Handles both Excel and CSV formats.
-    Returns match-specific data rows.
+    The CSV structure has:
+    - Row 1: Brooklyn (season aggregate - no Date, no Match)
+    - Row 2: Opponents (season aggregate - no Date, no Match)
+    - Rows 3+: Individual matches with Date, Match, Team, and stats
     """
     # Determine file type and read accordingly
     if isinstance(file_path, str):
@@ -25,38 +28,53 @@ def parse_match_data(file_path):
     # Normalize column names
     df.columns = [str(col).strip() for col in df.columns]
     
-    # Print debug info
-    print(f"DEBUG: DataFrame shape: {df.shape}")
-    print(f"DEBUG: Columns: {list(df.columns)}")
-    print(f"DEBUG: First few rows:")
-    print(df.head())
+    print(f"DEBUG: Loaded {len(df)} rows, {len(df.columns)} columns")
+    print(f"DEBUG: Columns: {list(df.columns[:10])}")  # First 10 columns
     
-    # The Team column should be around index 4
-    if len(df.columns) > 4:
+    # The key is to filter by rows that have BOTH Date and Match populated
+    # because the summary rows (Brooklyn, Opponents) have NO Date and NO Match
+    
+    # Find Date and Match columns
+    date_col = None
+    match_col = None
+    team_col = None
+    
+    for col in df.columns:
+        if 'Date' in col:
+            date_col = col
+        elif 'Match' in col:
+            match_col = col
+        elif 'Team' in col or col == df.columns[4]:
+            team_col = col
+    
+    if team_col is None and len(df.columns) > 4:
         team_col = df.columns[4]
-        print(f"DEBUG: Using team column: {team_col}")
-        print(f"DEBUG: Unique team values: {df[team_col].unique()[:10]}")
     
-    # Get all rows where we have actual data (not empty)
-    # Filter out rows that are completely empty or contain only the season summary
-    df_clean = df.dropna(subset=[df.columns[0]]).copy()  # Remove rows with no date
+    print(f"DEBUG: Date column: {date_col}")
+    print(f"DEBUG: Match column: {match_col}")
+    print(f"DEBUG: Team column: {team_col}")
     
-    # Remove rows where Team column contains only "Brooklyn" or "Opponents" (the summary rows)
-    if len(df_clean.columns) > 4:
-        team_col = df_clean.columns[4]
-        # Keep rows where Team is not exactly 'Brooklyn' or 'Opponents' (these are the summary rows)
-        # We want to keep rows like "Brooklyn" in match context rows
-        df_clean = df_clean[~(df_clean[team_col].astype(str).str.strip().isin(['Brooklyn', 'Opponents']))].copy()
+    # Filter: keep only rows where BOTH Date and Match have values
+    # This automatically excludes the summary rows
+    df_matches = df.copy()
     
-    print(f"DEBUG: After filtering, shape: {df_clean.shape}")
+    if date_col:
+        df_matches = df_matches[df_matches[date_col].notna()]
+        print(f"DEBUG: After filtering for Date values: {len(df_matches)} rows")
     
-    # If we have data, return it
-    if not df_clean.empty:
-        return df_clean, {}
+    if match_col:
+        df_matches = df_matches[df_matches[match_col].notna()]
+        print(f"DEBUG: After filtering for Match values: {len(df_matches)} rows")
     
-    # Fallback: return original dataframe minus truly empty rows
-    df_original = df.dropna(how='all').copy()
-    return df_original, {}
+    # Remove rows where both values are essentially empty/NaN
+    df_matches = df_matches.dropna(how='all').copy()
+    
+    if team_col:
+        print(f"DEBUG: Unique teams found: {df_matches[team_col].unique()}")
+    
+    print(f"DEBUG: Final match data shape: {df_matches.shape}")
+    
+    return df_matches, {}
 
 
 def parse_team_stats(file_path):
