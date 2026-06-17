@@ -5,61 +5,46 @@ import pandas as pd
 def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6', has_baseline=None):
     """
     Generates a grouped bar chart for Brooklyn FC vs an Opponent.
-    Accepts both 'season_baseline' and legacy 'has_baseline' parameters gracefully.
+    Dynamically maps 'Brooklyn' to the primary team and the opponent row to the secondary.
     """
-    # Parameter normalization safety layer
-    if season_baseline is None and has_baseline is not None:
-        season_baseline = has_baseline
-
     fig = go.Figure()
     
-    b_fc_val = round(float(pd.to_numeric(df_metrics['Brooklyn_FC'].iloc[0], errors='coerce')), 2)
-    opp_val = round(float(pd.to_numeric(df_metrics['Opponent'].iloc[0], errors='coerce')), 2)
-    metric_label = str(df_metrics['Metric_Name'].iloc[0])
+    # --- DYNAMIC LOOKUP ---
+    # Find the row for Brooklyn and the row for the Opponent
+    bk_row = df_metrics[df_metrics['Team'] == 'Brooklyn'].iloc[0]
+    opp_row = df_metrics[df_metrics['Team'] != 'Brooklyn'].iloc[0]
     
+    # Get the metric value (assuming the metric name is passed as the column name to look for)
+    # The metric_label is the column name you are plotting
+    metric_key = df_metrics.columns[-1] # Adjust this if needed
+    
+    b_fc_val = round(float(pd.to_numeric(bk_row[metric_key], errors='coerce')), 2)
+    opp_val = round(float(pd.to_numeric(opp_row[metric_key], errors='coerce')), 2)
+    metric_label = metric_key 
+    # -----------------------
+
     # 1. Brooklyn FC
     fig.add_trace(go.Bar(
-        x=[metric_label],
-        y=[b_fc_val],
-        name='Brooklyn FC',
-        marker_color=primary_color,
-        text=[f"{b_fc_val}"],
-        textposition='auto'
+        x=[metric_label], y=[b_fc_val], name='Brooklyn',
+        marker_color=primary_color, text=[f"{b_fc_val}"], textposition='auto'
     ))
     
     # 2. Opponent Performance
     fig.add_trace(go.Bar(
-        x=[metric_label],
-        y=[opp_val],
-        name=f"{opponent_name} (Match)",
-        marker_color=opponent_color,
-        text=[f"{opp_val}"],
-        textposition='auto'
+        x=[metric_label], y=[opp_val], name=f"{opponent_name} (Match)",
+        marker_color=opponent_color, text=[f"{opp_val}"], textposition='auto'
     ))
     
-    # 3. Baseline Profile
-    if season_baseline is not None and not isinstance(season_baseline, bool) and not np.isnan(float(season_baseline)):
-        base_val = round(float(season_baseline), 2)
+    # 3. Season Baseline
+    if season_baseline is not None and not np.isnan(float(season_baseline)):
         fig.add_trace(go.Bar(
-            x=[metric_label],
-            y=[base_val],
-            name=f"{opponent_name} (Season Avg)",
-            marker_color='#4A90E2',
-            text=[f"{base_val}"],
-            textposition='auto'
+            x=[metric_label], y=[round(float(season_baseline), 2)],
+            name=f"{opponent_name} (Season Avg)", marker_color='#4A90E2',
+            text=[f"{round(float(season_baseline), 2)}"], textposition='auto'
         ))
         
-    fig.update_layout(
-        barmode='group',
-        title=f"Tactical Context: Brooklyn FC vs {opponent_name}",
-        xaxis_title="Performance Domain",
-        yaxis_title="Value",
-        template="plotly_white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    
+    fig.update_layout(barmode='group', title=f"Brooklyn vs {opponent_name}", template="plotly_white")
     return fig
-
 
 def build_radar_profile_web(df_radar, title="Tactical Style Comparison"):
     """
