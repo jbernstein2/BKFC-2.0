@@ -1,34 +1,42 @@
 import pandas as pd
-import pypdf
-import io
+import numpy as np
 
-def parse_team_stats(file_obj):
-    """Dynamically detects file type and extracts raw, unaltered spreadsheet rows."""
-    file_name = file_obj.name.lower()
+def parse_match_data(file_path):
+    """
+    Loads and parses Wyscout match exports. 
+    Extracts the team/opponent season baseline before filtering out 
+    the rows to isolate individual player statistics.
+    """
+    # 1. Load the raw spreadsheet
+    df = pd.read_excel(file_path)
     
-    if file_name.endswith('.csv'):
-        df = pd.read_csv(io.BytesIO(file_obj.getvalue()))
+    # Clean up column spaces to prevent string matching bugs
+    df.columns = [str(col).strip() for col in df.columns]
+    
+    # 2. Extract summary baseline row before any rows are dropped
+    # Looks for 'Season Average', 'Summary', or team name rows provided by Wyscout
+    summary_mask = df.iloc[:, 0].astype(str).str.contains('Season Average|Summary|Opponents|Louisville City', case=False, na=False)
+    summary_rows = df[summary_mask]
+    
+    opponent_season_avg = None
+    if not summary_rows.empty:
+        # Pull the value from your target metric column (e.g., 'Goals' or 'Metric_Value')
+        target_col = 'Metric_Value' if 'Metric_Value' in df.columns else df.columns[1]
+        raw_avg = summary_rows[target_col].values[0]
+        opponent_season_avg = pd.to_numeric(raw_avg, errors='coerce')
+    
+    # Fallback to 0.0 if the baseline is missing or resolves to NaN
+    if pd.isna(opponent_season_avg):
+        opponent_season_avg = 0.0
+
+    # 3. Clean and isolate individual player statistics
+    # Filters out the summary rows so they don't break player-specific charts
+    df_players = df[~summary_mask].copy()
+    
+    # Drop rows where critical identifier info is missing
+    if 'Player' in df_players.columns:
+        df_players = df_players.dropna(subset=['Player'])
     else:
-        df = pd.read_excel(io.BytesIO(file_obj.getvalue()), sheet_name='TeamStats')
-        
-    return df  # Returns completely raw dataframe to preserve summary rows
-
-def read_pdf_page(pdf_file, page_num):
-    """Extracts raw text content from a localized page number layer."""
-    pdf_reader = pypdf.PdfReader(io.BytesIO(pdf_file.getvalue()))
-    return pdf_reader.pages[page_num].extract_text()
-
-def get_pdf_total_pages(pdf_file):
-    """Returns total indexable pages inside the target match document."""
-    pdf_reader = pypdf.PdfReader(io.BytesIO(pdf_file.getvalue()))
-    return len(pdf_reader.pages)
-
-def query_pdf_keyword(pdf_file, keyword):
-    """Scans the document string fields to locate matched page references."""
-    pdf_reader = pypdf.PdfReader(io.BytesIO(pdf_file.getvalue()))
-    matched_pages = []
-    for idx in range(len(pdf_reader.pages)):
-        text = pdf_reader.pages[idx].extract_text().lower()
-        if keyword.lower() in text:
-            matched_pages.append(idx + 1)
-    return matched_pages
+        df_players = df_players.dropna(subset=[df_players.columns[0]])
+    
+    return df_players, opponent_season_avg
