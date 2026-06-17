@@ -3,36 +3,34 @@ import numpy as np
 import pandas as pd
 
 def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6', has_baseline=None):
-    # 1. Clean column names (strip whitespace)
     df_metrics.columns = [str(c).strip() for c in df_metrics.columns]
     
-    # 2. Find which column contains the team names
-    # It looks for the first column that contains 'Brooklyn' or 'Opponent'
+    # 1. Identify the 'Team' column dynamically
     team_col = None
-    for col in df_metrics.columns:
-        if 'brooklyn' in df_metrics[col].astype(str).str.lower().values[0]:
+    for col in ['Team', 'Club', df_metrics.columns[4]]: # Check common names
+        if col in df_metrics.columns:
             team_col = col
             break
+            
+    # 2. Safety filter for Brooklyn and Opponent
+    bk_data = df_metrics[df_metrics[team_col].str.contains('Brooklyn', case=False, na=False)]
+    opp_data = df_metrics[~df_metrics[team_col].str.contains('Brooklyn', case=False, na=False)]
     
-    if not team_col:
-        # Fallback: assume the second column (index 1) is the Team column based on your file
-        team_col = df_metrics.columns[1]
+    # 3. Check for empty data BEFORE accessing .iloc[0]
+    if bk_data.empty or opp_data.empty:
+        print(f"DEBUG: Brooklyn rows found: {len(bk_data)}, Opponent rows found: {len(opp_data)}")
+        return go.Figure() # Returns empty figure instead of crashing
 
-    # 3. Dynamic lookup using the identified team column
-    bk_mask = df_metrics[team_col].astype(str).str.contains('Brooklyn', case=False)
+    bk_row = bk_data.iloc[0]
+    opp_row = opp_data.iloc[0]
     
-    # Handle cases where team names might be "Louisville City" or "Opponents"
-    # We grab the first row that ISN'T Brooklyn as the opponent
-    bk_row = df_metrics[bk_mask].iloc[0]
-    opp_row = df_metrics[~bk_mask].iloc[0]
-    
-    # Get the numeric metric (assuming the last column is the one you are plotting)
+    # Use the column you want to plot (e.g., the last column in your dataset)
     metric_key = df_metrics.columns[-1]
     
     b_fc_val = round(float(pd.to_numeric(bk_row[metric_key], errors='coerce')), 2)
     opp_val = round(float(pd.to_numeric(opp_row[metric_key], errors='coerce')), 2)
     
-    # --- Now proceed with your existing bar chart code ---
+    # ... rest of your chart logic remains the same ...
     fig = go.Figure()
     fig.add_trace(go.Bar(x=[metric_key], y=[b_fc_val], name='Brooklyn', marker_color=primary_color))
     fig.add_trace(go.Bar(x=[metric_key], y=[opp_val], name=f"{opponent_name} (Match)", marker_color=opponent_color))
