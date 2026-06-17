@@ -5,32 +5,26 @@ import pandas as pd
 def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6', has_baseline=None):
     df_metrics.columns = [str(c).strip() for c in df_metrics.columns]
     
-    # 1. Identify the 'Team' column dynamically
-    team_col = None
-    for col in ['Team', 'Club', df_metrics.columns[4]]: # Check common names
-        if col in df_metrics.columns:
-            team_col = col
-            break
-            
-    # 2. Safety filter for Brooklyn and Opponent
-    bk_data = df_metrics[df_metrics[team_col].str.contains('Brooklyn', case=False, na=False)]
-    opp_data = df_metrics[~df_metrics[team_col].str.contains('Brooklyn', case=False, na=False)]
+    # 1. Clean data: Remove the top-level summary rows that cause index crashes
+    # We filter for rows where 'Date' or 'Match' is NOT null/empty
+    match_data = df_metrics[df_metrics['Date'].notna() & (df_metrics['Date'] != 'Brooklyn')].copy()
     
-    # 3. Check for empty data BEFORE accessing .iloc[0]
+    # 2. Extract specific rows for this match
+    # We look for rows that match the specific opponent name provided
+    bk_data = match_data[match_data['Team'] == 'Brooklyn']
+    opp_data = match_data[match_data['Team'] != 'Brooklyn']
+    
+    # 3. Fail gracefully if data is missing
     if bk_data.empty or opp_data.empty:
-        print(f"DEBUG: Brooklyn rows found: {len(bk_data)}, Opponent rows found: {len(opp_data)}")
-        return go.Figure() # Returns empty figure instead of crashing
+        return go.Figure()
 
-    bk_row = bk_data.iloc[0]
-    opp_row = opp_data.iloc[0]
-    
-    # Use the column you want to plot (e.g., the last column in your dataset)
+    # Get the last column as the metric to plot
     metric_key = df_metrics.columns[-1]
     
-    b_fc_val = round(float(pd.to_numeric(bk_row[metric_key], errors='coerce')), 2)
-    opp_val = round(float(pd.to_numeric(opp_row[metric_key], errors='coerce')), 2)
+    b_fc_val = round(float(pd.to_numeric(bk_data.iloc[0][metric_key], errors='coerce')), 2)
+    opp_val = round(float(pd.to_numeric(opp_data.iloc[0][metric_key], errors='coerce')), 2)
     
-    # ... rest of your chart logic remains the same ...
+    # 4. Generate Plotly Figure
     fig = go.Figure()
     fig.add_trace(go.Bar(x=[metric_key], y=[b_fc_val], name='Brooklyn', marker_color=primary_color))
     fig.add_trace(go.Bar(x=[metric_key], y=[opp_val], name=f"{opponent_name} (Match)", marker_color=opponent_color))
