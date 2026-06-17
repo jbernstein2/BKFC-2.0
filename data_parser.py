@@ -6,8 +6,8 @@ import io
 def parse_match_data(file_path):
     """
     Loads and parses Wyscout match exports.
-    Extracts the team/opponent season baseline and match-specific data.
     Handles both Excel and CSV formats.
+    Returns match-specific data rows where Team='Brooklyn' or Team=Opponent.
     """
     # Determine file type and read accordingly
     if isinstance(file_path, str):
@@ -22,30 +22,42 @@ def parse_match_data(file_path):
         except:
             df = pd.read_csv(file_path)
     
+    # Normalize column names
     df.columns = [str(col).strip() for col in df.columns]
     
-    # Extract season average rows (Brooklyn and Opponents rows)
-    opponent_season_avg = None
-    summary_data = {}
+    # The data has: aggregated rows (Brooklyn, Opponents) followed by individual match rows
+    # We need to skip aggregated rows and keep only match-specific data
     
-    for idx, row in df.iterrows():
-        team_val = str(row.iloc[4]) if len(row) > 4 else ""
-        if team_val.strip() == "Opponents":
-            # This is the opponent season average row
-            summary_data['Opponents'] = row
+    # Identify the "Team" column (usually column index 4)
+    team_col = None
+    for col in df.columns:
+        if 'Team' in col or col == df.columns[4]:
+            team_col = col
             break
     
-    # Get actual match data (remove summary rows)
-    summary_mask = df.iloc[:, 4].astype(str).isin(['Brooklyn', 'Opponents', ''])
-    df_matches = df[summary_mask].copy()
+    if team_col is None:
+        team_col = df.columns[4]
     
-    return df_matches, summary_data
+    # Filter out summary rows (keep only rows with actual match data)
+    # Match rows have a Date, Match, and Team value
+    match_data = df[df[team_col].notna()].copy()
+    
+    # Remove the aggregated summary rows (first two rows are Brooklyn and Opponents season averages)
+    # These rows have simple team names without opponent info
+    match_data = match_data[~match_data[team_col].isin(['Brooklyn', 'Opponents'])].copy()
+    
+    # Ensure we have valid data
+    if match_data.empty:
+        # If filtering removed too much, include all data and let the app handle it
+        match_data = df[df[team_col].notna()].copy()
+    
+    return match_data, {}
 
 
 def parse_team_stats(file_path):
     """
     Parse team statistics file and extract season averages.
-    Returns DataFrame with both team and opponent season baselines.
+    Returns DataFrame with match data (includes aggregated rows).
     """
     try:
         if isinstance(file_path, str):
