@@ -4,8 +4,3 @@ backgroundColor = "#000000"      # Deep Black
 secondaryBackgroundColor = "#161A1D" # Charcoal / Dark Silver
 textColor = "#FFFFFF"            # White
 font = "sans serif"
-
-[server]
-headless = true
-enableCORS = false
-enableXsrfProtection = true
