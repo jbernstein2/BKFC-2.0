@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 
-def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, primary_color='#000000', opponent_color='#A6A6A6'):
+def build_match_comparison_chart(df_metrics, opponent_name, primary_color='#000000', opponent_color='#A6A6A6'):
     """
-    Creates a grouped bar chart comparing Brooklyn vs Opponent across key metrics.
+    Creates a bar chart comparing Brooklyn vs Opponent for the SPECIFIC MATCH ONLY.
+    Shows only match-day performance, not season averages.
     """
     try:
         df_plot = df_metrics.dropna(subset=['Metric']).copy()
@@ -17,10 +18,11 @@ def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, pri
         fig.add_trace(go.Bar(
             x=df_plot['Metric'],
             y=df_plot['Brooklyn FC (Match)'],
-            name='Brooklyn FC (Match)',
+            name='Brooklyn FC',
             marker_color=primary_color,
             text=df_plot['Brooklyn FC (Match)'].round(1),
-            textposition='auto'
+            textposition='auto',
+            hovertemplate='<b>Brooklyn FC</b><br>%{x}<br>%{y:.1f}<extra></extra>'
         ))
         
         # Opponent bars
@@ -28,38 +30,130 @@ def build_grouped_bar_chart(df_metrics, opponent_name, season_baseline=None, pri
             fig.add_trace(go.Bar(
                 x=df_plot['Metric'],
                 y=df_plot[f'{opponent_name} (Match)'],
-                name=f'{opponent_name} (Match)',
+                name=opponent_name,
                 marker_color=opponent_color,
                 text=df_plot[f'{opponent_name} (Match)'].round(1),
-                textposition='auto'
-            ))
-        
-        # Season average line
-        if f'{opponent_name} (Season Avg)' in df_plot.columns:
-            fig.add_trace(go.Bar(
-                x=df_plot['Metric'],
-                y=df_plot[f'{opponent_name} (Season Avg)'],
-                name=f'{opponent_name} (Season Avg)',
-                marker_color='rgba(166, 166, 166, 0.5)',
-                marker_pattern_shape='x',
-                text=df_plot[f'{opponent_name} (Season Avg)'].round(1),
-                textposition='auto'
+                textposition='auto',
+                hovertemplate=f'<b>{opponent_name}</b><br>%{{x}}<br>%{{y:.1f}}<extra></extra>'
             ))
         
         fig.update_layout(
-            title=f"Tactical Context: Brooklyn FC vs {opponent_name}",
+            title=f"🎯 Match Performance: Brooklyn FC vs {opponent_name}",
             barmode='group',
             template="plotly_white",
             hovermode='x unified',
             height=500,
             font=dict(size=12),
             xaxis_title="Metric",
-            yaxis_title="Value"
+            yaxis_title="Value",
+            showlegend=True
         )
         
         return fig
     except Exception as e:
-        print(f"Error building bar chart: {e}")
+        print(f"Error building match comparison chart: {e}")
+        return go.Figure()
+
+
+def build_season_baseline_chart(brooklyn_data, opponent_data, opp_baseline, opp_team_name="Opponent"):
+    """
+    Creates a bar chart comparing SEASON AVERAGES:
+    - Brooklyn season average (from aggregated row)
+    - Brooklyn's opponent season average (from aggregated row)
+    - This specific opponent's season average
+    
+    This isolates baseline/contextual performance.
+    """
+    try:
+        # Define key tactical metrics
+        metrics_map = {
+            'Possession %': 'Possession, %',
+            'Goals': 'Goals',
+            'xG': 'xG',
+            'Shots': 'Shots / on target',
+            'Box Touches': 'Touches in penalty area',
+            'PPDA': 'PPDA',
+        }
+        
+        baseline_data = []
+        
+        for display_name, col_name in metrics_map.items():
+            try:
+                # Extract baseline values (these come from the "Opponents" aggregated row)
+                brooklyn_baseline = float(brooklyn_data.get(col_name, np.nan)) if col_name in brooklyn_data else np.nan
+                opp_baseline_val = float(opponent_data.get(col_name, np.nan)) if col_name in opponent_data else np.nan
+                
+                row = {
+                    'Metric': display_name,
+                    'Brooklyn Season Avg': brooklyn_baseline,
+                    'Avg vs Opponents': opp_baseline_val,
+                }
+                
+                # Add this specific opponent's season average if available
+                if opp_baseline and col_name in opp_baseline:
+                    row[f'{opp_team_name} Season Avg'] = float(opp_baseline.get(col_name, np.nan))
+                
+                baseline_data.append(row)
+            except Exception as e:
+                print(f"Error processing baseline metric {display_name}: {e}")
+                continue
+        
+        if not baseline_data:
+            return go.Figure()
+        
+        df_baseline = pd.DataFrame(baseline_data)
+        
+        fig = go.Figure()
+        
+        # Brooklyn season average
+        fig.add_trace(go.Bar(
+            x=df_baseline['Metric'],
+            y=df_baseline['Brooklyn Season Avg'],
+            name='Brooklyn Season Avg',
+            marker_color='#000000',
+            text=df_baseline['Brooklyn Season Avg'].round(1),
+            textposition='auto',
+            hovertemplate='<b>Brooklyn Season Avg</b><br>%{x}<br>%{y:.1f}<extra></extra>'
+        ))
+        
+        # Average vs opponents
+        fig.add_trace(go.Bar(
+            x=df_baseline['Metric'],
+            y=df_baseline['Avg vs Opponents'],
+            name='Avg vs Opponents',
+            marker_color='#666666',
+            text=df_baseline['Avg vs Opponents'].round(1),
+            textposition='auto',
+            hovertemplate='<b>Avg vs Opponents</b><br>%{x}<br>%{y:.1f}<extra></extra>'
+        ))
+        
+        # Specific opponent season average
+        if f'{opp_team_name} Season Avg' in df_baseline.columns:
+            fig.add_trace(go.Bar(
+                x=df_baseline['Metric'],
+                y=df_baseline[f'{opp_team_name} Season Avg'],
+                name=f'{opp_team_name} Season Avg',
+                marker_color='#4A90E2',
+                text=df_baseline[f'{opp_team_name} Season Avg'].round(1),
+                textposition='auto',
+                hovertemplate=f'<b>{opp_team_name} Season Avg</b><br>%{{x}}<br>%{{y:.1f}}<extra></extra>'
+            ))
+        
+        fig.update_layout(
+            title=f"📊 Season Baselines Context: Brooklyn & {opp_team_name}",
+            barmode='group',
+            template="plotly_white",
+            hovermode='x unified',
+            height=500,
+            font=dict(size=12),
+            xaxis_title="Metric",
+            yaxis_title="Value",
+            showlegend=True
+        )
+        
+        return fig
+    except Exception as e:
+        print(f"Error building baseline chart: {e}")
         return go.Figure()
 
 
@@ -88,8 +182,8 @@ def build_radar_profile_web(brooklyn_data, opponent_data, opp_baseline=None, opp
                 # Normalize values to 0-100 scale for radar
                 if 'PPDA' in col_name:
                     # Lower PPDA is better (inverted)
-                    bk_val = max(0, 100 - (float(brooklyn_data[col_name].values[0]) * 10))
-                    opp_val = max(0, 100 - (float(opponent_data[col_name].values[0]) * 10))
+                    bk_val = max(0, 100 - (float(brooklyn_data[col_name].values[0]) * 10)) if col_name in brooklyn_data.columns else 0
+                    opp_val = max(0, 100 - (float(opponent_data[col_name].values[0]) * 10)) if col_name in opponent_data.columns else 0
                     base_val = max(0, 100 - (opp_baseline.get(col_name, 50) * 10)) if opp_baseline else None
                 else:
                     bk_val = float(brooklyn_data[col_name].values[0]) if col_name in brooklyn_data.columns else 0
@@ -152,7 +246,7 @@ def build_radar_profile_web(brooklyn_data, opponent_data, opp_baseline=None, opp
             ),
             showlegend=True,
             template="plotly_white",
-            title=f"Tactical Profile: Brooklyn FC vs {opp_team_name}",
+            title=f"🕸️ Tactical Profile: Brooklyn FC vs {opp_team_name}",
             height=600,
             font=dict(size=12)
         )
